@@ -2,13 +2,13 @@
 
 ## 実装済みの内容
 
-このコードは、全世界に分散した複数のコンピュータリソースで構成されるテストベットをTerraformを使ってAWSに構築します。
+このコードは、全世界に分散した複数のコンピュータリソースで構成されるテストベットをAWSに構築します。
 
 現在のコードで実装されるテストベットは、ひとつのデータセンター（シングルリージョン）に配置した複数のコンピュータにネットワークの遅延とエラー率を発生させることができます。
 
 このコードを使って、テストベットに必要な設定と動作確認を行うことができます。また、テストベット利用者のチュートリアルとして利用できます。
 
-## 追加作業
+## 必要となる追加の作業
 
 ### 固有ソフトウェアのセットアップ
 
@@ -17,9 +17,9 @@
 * 各コンピュータで動作させるソフトウェアのセットアップ
 * 動作ログを収集する仕組みのセットアップ
 
-これらの設定は、テスト対象固有で、LinuxにCLIで設定できる必要があります。
+これらの設定は、**LinuxにCLIで設定できることが必須条件** です。
 
-## テストベットの要件に応じたスケールアップ
+### テストベットの要件に応じたスケールアップ
 
 設定が完了したテストベットを、複数のデータセンター（マルチリージョン）に配置し、実際のネットワークと同じ構成にし、日本から各国の平均的な遅延とエラー率を設定します。
 
@@ -39,10 +39,30 @@
 * IAMロールによる権限付与（推奨）
 * 環境変数によるシークレットキーの設定
 
+下記のコマンドで初期化を実行します。
+
+```
+terraform -install-autocomple
+source ~/.bashrc
+terraform init
+```
+
 下記のコマンドでリソース一式を作成します。
 
 ```
 terraform apply
+```
+
+接続するインスタンスを指定します。
+
+```
+IP_IDX=0
+```
+
+ssh接続します。
+
+```
+eval $(terraform output -json ssh_private_cmds | jq -r '.['$IP_IDX']')
 ```
 
 下記のコマンドでリソース一式を削除します。
@@ -61,6 +81,137 @@ export TF_VAR_network_latency_ms=100
 export TF_VAR_network_error_rate=0.05
 expott TF_VAR_affected_pc_ratio=0.7
 terraform apply
+```
+
+```
+$ IP_IDX=0
+$ eval $(terraform output -json ssh_private_cmds | jq -r '.['$IP_IDX']')
+The authenticity of host '35.77.36.31 (35.77.36.31)' can't be established.
+ECDSA key fingerprint is SHA256:jW87T6xKxo8TsashCfiZNHDOKf7ltp6mVyBJFghtZyo.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '35.77.36.31' (ECDSA) to the list of known hosts.
+   ,     #_
+   ~\_  ####_        Amazon Linux 2
+  ~~  \_#####\
+  ~~     \###|       AL2 End of Life is 2026-06-30.
+  ~~       \#/ ___
+   ~~       V~' '->
+    ~~~         /    A newer version of Amazon Linux is available!
+      ~~._.   _/
+         _/ _/       Amazon Linux 2023, GA and supported until 2028-03-15.
+       _/m/'           https://aws.amazon.com/linux/amazon-linux-2023/
+
+[ec2-user@ip-172-31-40-158 ~]$ 
+```
+
+## ネットワークの遅延とエラーを設定
+
+ネットワークの遅延とエラーは、AWS FISで設定する予定ですが、FISで一部、実装が完了していない部分があり、tcコマンドと組み合わせて実行する必要があります。
+
+tcコマンドで遅延とエラーを設定する方法は、下記の通りです。
+
+下記のコマンドでネットワークの遅延を100ms、損失率10%に設定します。
+
+```
+sudo tc qdisc add dev eth0 root netem delay 100ms loss 10%
+```
+
+設定した内容は、下記のコマンドで確認できます。
+
+```
+sudo tc qdisc show
+```
+
+下記のコマンドで設定した遅延を解除します。
+
+```
+sudo tc qdisc del dev eth0 root netem
+```
+
+遅延を設定して解除したログです。
+
+```
+64 bytes from 8.8.8.8: icmp_seq=422 ttl=115 time=2.24 ms
+64 bytes from 8.8.8.8: icmp_seq=423 ttl=115 time=2.26 ms
+64 bytes from 8.8.8.8: icmp_seq=424 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=425 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=426 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=427 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=428 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=429 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=430 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=431 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=432 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=433 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=434 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=435 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=436 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=437 ttl=115 time=2.25 ms
+64 bytes from 8.8.8.8: icmp_seq=438 ttl=115 time=2.36 ms
+64 bytes from 8.8.8.8: icmp_seq=439 ttl=115 time=2.24 ms
+64 bytes from 8.8.8.8: icmp_seq=440 ttl=115 time=2.25 ms
+```
+
+最後にエラー率が確認できます。
+
+```
+--- 8.8.8.8 ping statistics ---
+80 packets transmitted, 76 received, 5% packet loss, time 79195ms
+rtt min/avg/max/mdev = 2.252/53.633/102.520/49.979 ms
+[ec2-user@ip-172-31-37-166 ~]$
+```
+## 実行例
+
+```
+[root@ip-172-31-37-166 ~]# sudo tc qdisc add dev eth0 root netem loss 20%
+[root@ip-172-31-37-166 ~]# tc qdisc show
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc netem 8005: dev eth0 root refcnt 3 limit 1000 loss 20%
+[root@ip-172-31-37-166 ~]# sudo tc qdisc del dev eth0 root netem
+[root@ip-172-31-37-166 ~]# tc qdisc show
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc mq 0: dev eth0 root 
+qdisc pfifo_fast 0: dev eth0 parent :2 bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
+qdisc pfifo_fast 0: dev eth0 parent :1 bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
+[root@ip-172-31-37-166 ~]# 
+```
+
+```
+[ec2-user@ip-172-31-37-166 ~]$ ping 8.8.8.8
+PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.
+64 bytes from 8.8.8.8: icmp_seq=1 ttl=115 time=2.69 ms
+64 bytes from 8.8.8.8: icmp_seq=2 ttl=115 time=2.25 ms
+64 bytes from 8.8.8.8: icmp_seq=3 ttl=115 time=2.26 ms
+... 中略（遅延とエラーを設定） ...
+64 bytes from 8.8.8.8: icmp_seq=25 ttl=115 time=2.27 ms
+64 bytes from 8.8.8.8: icmp_seq=26 ttl=115 time=2.26 ms
+64 bytes from 8.8.8.8: icmp_seq=27 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=28 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=29 ttl=115 time=102 ms
+... 中略 （遅延とエラーを解除）...
+64 bytes from 8.8.8.8: icmp_seq=68 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=69 ttl=115 time=102 ms
+64 bytes from 8.8.8.8: icmp_seq=70 ttl=115 time=2.25 ms
+64 bytes from 8.8.8.8: icmp_seq=71 ttl=115 time=2.25 ms
+64 bytes from 8.8.8.8: icmp_seq=72 ttl=115 time=2.35 ms
+64 bytes from 8.8.8.8: icmp_seq=73 ttl=115 time=2.26 ms
+64 bytes from 8.8.8.8: icmp_seq=74 ttl=115 time=2.28 ms
+... 中略 （測定を矯正終了）...
+64 bytes from 8.8.8.8: icmp_seq=79 ttl=115 time=2.27 ms
+64 bytes from 8.8.8.8: icmp_seq=80 ttl=115 time=2.27 ms
+^C
+--- 8.8.8.8 ping statistics ---
+80 packets transmitted, 76 received, 5% packet loss, time 79195ms
+rtt min/avg/max/mdev = 2.252/53.633/102.520/49.979 ms
+[ec2-user@ip-172-31-37-166 ~]$
+```
+
+## メモ
+
+Amazon Linux2の場合、下記のパッケージが必要です。
+
+```
+yum install -y iproute-tc
 ```
 
 以上
